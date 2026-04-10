@@ -253,14 +253,15 @@ def reproject_plate(data, wcs_in, mask, weight, output_wcs, shape_out, plate_id,
     data_nan[mask != 0] = np.nan
 
     try:
+        # order=1: bilinear interpolation; order=0: nearest-neighbour (for masks)
         repr_data, footprint = reproject_interp(
-            (data_nan, wcs_in), output_wcs, shape_out=shape_out, order="bilinear"
+            (data_nan, wcs_in), output_wcs, shape_out=shape_out, order=1
         )
         repr_mask_f, _ = reproject_interp(
-            (mask.astype(np.float64), wcs_in), output_wcs, shape_out=shape_out, order="nearest-neighbor"
+            (mask.astype(np.float64), wcs_in), output_wcs, shape_out=shape_out, order=0
         )
         repr_weight_f, _ = reproject_interp(
-            (weight.astype(np.float64), wcs_in), output_wcs, shape_out=shape_out, order="bilinear"
+            (weight.astype(np.float64), wcs_in), output_wcs, shape_out=shape_out, order=1
         )
     except Exception as exc:
         log.warning("Reprojection failed for plate %s: %s", plate_id, exc)
@@ -470,7 +471,7 @@ def main():
         weight_stack.append(r_weight)
         plate_ids.append(plate_id)
 
-    log.info("Coaddding %d plates …", len(repr_stack))
+    log.info("Coadding %d plates …", len(repr_stack))
     coadd, weight_map, mask_map, contributors = median_coadd(repr_stack, mask_stack, weight_stack)
 
     # Source detection

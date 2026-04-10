@@ -156,7 +156,10 @@ def download_plates_for_tile(cfg: dict) -> list:
 
     ra = cfg["center_ra_deg"]
     dec = cfg["center_dec_deg"]
-    radius = math.sqrt(cfg["area_sqdeg"] / math.pi) * 1.2  # add 20% margin
+    # Minimum search radius to cover all corners of the square tile:
+    # half-diagonal = sqrt(2) * side/2, plus 10% margin for plate overlap
+    half_side = math.sqrt(cfg["area_sqdeg"]) / 2.0
+    radius = math.sqrt(2) * half_side * 1.1
 
     plates_meta = query_plates(ra, dec, radius_deg=radius)
 

@@ -1,0 +1,103 @@
+name: DASCH Coadd Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      run_mode:
+        description: "Run mode: 'test' (limited plates, fast) or 'full' (all plates)"
+        required: false
+        default: "test"
+
+jobs:
+  coadd:
+    name: Build DASCH median coadd
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      # Default to test mode in CI; workflow_dispatch can override
+      RUN_MODE: ${{ github.event.inputs.run_mode || 'test' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # Docker layer caching via buildx / cache-from
+      # ------------------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/Dockerfile', 'docker/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          tags: dasch-coadd:latest
+          load: true
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # Prevent cache from growing unbounded
+      - name: Rotate build cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      # ------------------------------------------------------------------
+      # Run the pipeline
+      # ------------------------------------------------------------------
+      - name: Create workspace directories
+        run: |
+          mkdir -p workspace/output workspace/tmp workspace/data
+
+      - name: Run DASCH coadd pipeline
+        run: |
+          docker run --rm \
+            -e RUN_MODE=${{ env.RUN_MODE }} \
+            -v "${{ github.workspace }}/workspace:/work/output_host" \
+            -v "${{ github.workspace }}/workspace/tmp:/work/tmp" \
+            -v "${{ github.workspace }}/workspace/data:/work/data" \
+            dasch-coadd:latest \
+            python /work/pipeline/run_coadd.py \
+              --config /work/config/m31.json \
+              --out-dir /work/output_host \
+              --tmp-dir /work/tmp
+
+      # ------------------------------------------------------------------
+      # Upload artifacts
+      # ------------------------------------------------------------------
+      - name: Upload coadd FITS products
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coadd-fits-${{ github.run_id }}
+          path: |
+            workspace/coadd.fits
+            workspace/weight_map.fits
+            workspace/mask_map.fits
+            workspace/contributors_map.fits
+            workspace/source_catalog.fits
+            workspace/provenance.log
+          retention-days: 14
+
+      - name: Upload QA plots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coadd-qa-plots-${{ github.run_id }}
+          path: |
+            workspace/coadd_thumbnail.png
+            workspace/contributors_map.png
+            workspace/zp_histogram.png
+          retention-days: 14

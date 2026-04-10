@@ -1,0 +1,9 @@
+{
+  "name": "M31",
+  "center_ra_deg": 10.684583,
+  "center_dec_deg": 41.269167,
+  "area_sqdeg": 5.0,
+  "projection": "TAN",
+  "pixel_scale_arcsec": 2.0,
+  "coadd_method": "median"
+}

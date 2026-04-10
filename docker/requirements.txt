@@ -1,0 +1,12 @@
+astropy
+reproject
+sep
+photutils
+numpy
+scipy
+requests
+astropy-healpix
+pyyaml
+matplotlib
+jupyter
+nbformat
